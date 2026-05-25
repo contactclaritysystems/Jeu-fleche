@@ -499,16 +499,12 @@ function update() {
     if (!shotDone && shot.y >= boardY - 10) {
       resolveShot();
     }
-    if (shot.y > H + 80) {
+    // If arrow passed through (transitioning), trigger next level quickly
+    if (transitioning && shot.y > boardY + 80) {
       shot = null;
-      if (gameState === 'playing') {
-        if (transitioning) {
-          nextShot();   // successful pass → advance level
-        } else {
-          // arrow fell off without hitting board (shouldn't happen normally)
-          nextShot();
-        }
-      }
+      if (gameState === 'playing') nextShot();
+    } else if (shot && shot.y > H + 80) {
+      shot = null;
     }
   }
 
