@@ -15,12 +15,9 @@
   }
   #gw {
     position:relative;
-    width:min(400px,100vw); height:min(700px,100vh);
+    width:min(700px,100vw); height:min(700px,100vh);
     background:#28283a; border-radius:24px; overflow:hidden;
     box-shadow:0 0 80px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06);
-  }
-  @media (hover: hover) and (pointer: fine) {
-    #gw { width:100vw; height:min(700px,100vh); border-radius:0; }
   }
   canvas { display:block; width:100%; height:100%; }
 
@@ -191,54 +188,33 @@ const ptCont = document.getElementById('particles');
 
 let W, H;
 
-// ── State ──────────────────────────────────────────────────────────
-let gameState = 'idle'; // idle | playing | dead
+let gameState = 'idle';
 let score = 0;
 let best  = +localStorage.getItem('arrowBest') || 0;
 let level = 1;
 
-// Arrow that oscillates horizontally
 let swing = { x:0, y:0, vx:0 };
+let shot = null;
+let shotDone = false;
 
-// Arrow in flight
-let shot = null;      // { x, y, vy }
-let shotDone = false; // result computed
-
-// Board
 const BOARD_Y_RATIO = 0.62;
 let boardY = 0;
 const BOARD_H = 26;
 
-// Gap (single hole)
-let gap = { x:0, w:0 };  // x = left edge, w = width
-
-// Arrows stuck in board (misses — visual only)
+let gap = { x:0, w:0 };
 let stuck = [];
-
-// Flash feedback
 let flash = { color:'', alpha:0 };
-
-// Level transition flag
 let transitioning = false;
-let waitingForNext = false; // arrow passed, waiting to reset
+let waitingForNext = false;
 
-// ── Level config ───────────────────────────────────────────────────
-// gapW: hole width in px (board is ~W-60 wide)
-// speed: swing speed px/frame
-// Starts moderate, gets brutal fast
 function levelConfig(lvl) {
-  // Gap shrinks from 90px → ~22px over 20 levels
   const maxGap = 90;
   const minGap = 22;
   const gapW   = Math.max(minGap, maxGap - (lvl - 1) * 3.6);
-
-  // Speed: starts at 3.5, goes up to 10
   const speed = Math.min(10, 3.5 + (lvl - 1) * 0.38);
-
   return { gapW, speed };
 }
 
-// ── Resize ─────────────────────────────────────────────────────────
 function resize() {
   const r = gw.getBoundingClientRect();
   W = canvas.width  = r.width;
@@ -246,12 +222,10 @@ function resize() {
   if (gameState === 'playing') initLevel(false);
 }
 
-// ── Init level ─────────────────────────────────────────────────────
 function initLevel(resetSwing = true) {
   const cfg = levelConfig(level);
   boardY = H * BOARD_Y_RATIO;
 
-  // Place gap randomly but not too close to edges
   const margin = 30;
   const maxLeft = W - margin - cfg.gapW;
   gap.w = cfg.gapW;
@@ -274,13 +248,11 @@ function initLevel(resetSwing = true) {
 
 function updateGapBar() {
   const cfg = levelConfig(level);
-  // max possible gap at level 1
   const pct = Math.round((cfg.gapW / 90) * 100);
   document.getElementById('gap-pct').textContent = pct + '%';
   document.getElementById('gap-bar').style.width  = pct + '%';
 }
 
-// ── Draw helpers ───────────────────────────────────────────────────
 function drawBg() {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#2e2e42');
@@ -289,7 +261,6 @@ function drawBg() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle stone lines
   ctx.save();
   ctx.strokeStyle = 'rgba(255,255,255,0.018)';
   ctx.lineWidth = 1;
@@ -300,18 +271,15 @@ function drawBg() {
   ctx.restore();
 }
 
-// Draw vertical arrow (tip at bottom, feathers at top)
-// cx, cy = center; alpha, scale optional
 function drawArrow(cx, cy, alpha=1, sc=1, dimmed=false) {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(cx, cy);
   ctx.scale(sc, sc);
 
-  const L = 56; // total length
-  const hw = 4.5; // shaft half-width
+  const L = 56;
+  const hw = 4.5;
 
-  // Shaft
   const sg = ctx.createLinearGradient(-hw, 0, hw, 0);
   sg.addColorStop(0, '#b0b0b0');
   sg.addColorStop(0.5, '#f0f0f0');
@@ -319,35 +287,30 @@ function drawArrow(cx, cy, alpha=1, sc=1, dimmed=false) {
   ctx.fillStyle = sg;
   ctx.fillRect(-hw, -L/2, hw*2, L);
 
-  // Tip (bottom)
   ctx.fillStyle = dimmed ? '#a08020' : '#f0c040';
   ctx.strokeStyle = dimmed ? '#705010' : '#c89000';
   ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(0, L/2 + 14);   // point
+  ctx.moveTo(0, L/2 + 14);
   ctx.lineTo(9, L/2 - 4);
   ctx.lineTo(-9, L/2 - 4);
   ctx.closePath();
   ctx.fill(); ctx.stroke();
 
-  // Feathers (top)
   ctx.fillStyle = dimmed ? '#a08020' : '#f0c040';
   ctx.strokeStyle = dimmed ? '#705010' : '#c89000';
   ctx.lineWidth = 1;
-  // Left
   ctx.beginPath();
   ctx.moveTo(0, -L/2);
   ctx.lineTo(-13, -L/2 + 18);
   ctx.lineTo(-4, -L/2 + 8);
   ctx.closePath(); ctx.fill(); ctx.stroke();
-  // Right
   ctx.beginPath();
   ctx.moveTo(0, -L/2);
   ctx.lineTo(13, -L/2 + 18);
   ctx.lineTo(4, -L/2 + 8);
   ctx.closePath(); ctx.fill(); ctx.stroke();
 
-  // Notch
   ctx.fillStyle = '#777';
   ctx.fillRect(-3.5, -L/2 - 2, 7, 7);
 
@@ -355,13 +318,11 @@ function drawArrow(cx, cy, alpha=1, sc=1, dimmed=false) {
 }
 
 function drawBoard() {
-  // Left piece: from 0 to gap.x
-  // Right piece: from gap.x+gap.w to W
   const by = boardY;
   const bh = BOARD_H;
 
   const pieces = [
-    { from: 0,            to: gap.x },
+    { from: 0,             to: gap.x },
     { from: gap.x + gap.w, to: W }
   ];
 
@@ -370,7 +331,6 @@ function drawBoard() {
     if (p.to <= p.from) continue;
     const pw = p.to - p.from;
 
-    // Wood gradient
     const wg = ctx.createLinearGradient(0, by, 0, by + bh);
     wg.addColorStop(0, '#d49030');
     wg.addColorStop(0.4, '#c07820');
@@ -384,11 +344,9 @@ function drawBoard() {
     ctx.fill();
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-    // Top highlight
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
     ctx.fillRect(p.from, by, pw, 3);
 
-    // Grain
     ctx.strokeStyle = 'rgba(0,0,0,0.1)';
     ctx.lineWidth = 1;
     for (let gx = p.from + 16; gx < p.to; gx += 18) {
@@ -397,7 +355,6 @@ function drawBoard() {
   }
   ctx.restore();
 
-  // Gap glow + arrow hint below
   const gcx = gap.x + gap.w / 2;
   const ggrd = ctx.createRadialGradient(gcx, by + bh/2, 0, gcx, by + bh/2, gap.w * 0.9);
   ggrd.addColorStop(0, 'rgba(120,210,255,0.09)');
@@ -405,7 +362,6 @@ function drawBoard() {
   ctx.fillStyle = ggrd;
   ctx.fillRect(gap.x, by - 30, gap.w, bh + 60);
 
-  // Gap width indicator lines
   ctx.save();
   ctx.strokeStyle = 'rgba(255,200,50,0.3)';
   ctx.lineWidth = 1.5;
@@ -420,7 +376,6 @@ function drawSwingArrow() {
   if (shot) return;
   const ax = swing.x, ay = swing.y;
 
-  // Dashed drop line
   ctx.save();
   ctx.strokeStyle = 'rgba(255,255,255,0.07)';
   ctx.lineWidth = 1.2;
@@ -442,7 +397,6 @@ function drawShotArrow() {
 
 function drawStuck() {
   for (const a of stuck) {
-    // stuck horizontally in board, dimmed, rotated 180° (tip up into board)
     ctx.save();
     ctx.translate(a.x, a.y);
     ctx.rotate(Math.PI);
@@ -459,7 +413,6 @@ function drawFlash() {
   ctx.fillRect(0, 0, W, H);
 }
 
-// ── Level label overlay ─────────────────────────────────────────────
 let levelFlash = 0;
 function drawLevelFlash() {
   if (levelFlash <= 0) return;
@@ -476,33 +429,29 @@ function drawLevelFlash() {
   levelFlash--;
 }
 
-// ── HUD ─────────────────────────────────────────────────────────────
 function updateHUD() {
   document.getElementById('level-badge').textContent = level;
   document.getElementById('score-badge').textContent = score;
   document.getElementById('best-badge').textContent  = best;
 }
 
-// ── Game loop ────────────────────────────────────────────────────────
 function update() {
   if (gameState !== 'playing') return;
 
-  // Swing
   if (!shot && !transitioning) {
     swing.x += swing.vx;
     if (swing.x > W - 28) { swing.x = W - 28; swing.vx *= -1; }
     if (swing.x < 28)     { swing.x = 28;      swing.vx *= -1; }
   }
 
-  // Shot arrow falling
   if (shot) {
     shot.y += shot.vy;
-    shot.vy = Math.min(shot.vy + 0.3, 14); // slight gravity
+    shot.vy = Math.min(shot.vy + 0.3, 14);
 
     if (!shotDone && shot.y >= boardY - 10) {
       resolveShot();
     }
-    // If arrow passed through (transitioning), trigger next level quickly
+
     if (transitioning && shot.y > boardY + 80) {
       shot = null;
       if (gameState === 'playing') nextShot();
@@ -511,7 +460,6 @@ function update() {
     }
   }
 
-  // Flash fade
   if (flash.alpha > 0) flash.alpha = Math.max(0, flash.alpha - 0.025);
 }
 
@@ -521,19 +469,14 @@ function resolveShot() {
   const inGap = ax > gap.x + 8 && ax < gap.x + gap.w - 8;
 
   if (inGap) {
-    // ✅ Pass!
     flash = { color:'rgb(0,200,80)', alpha:0.18 };
     score += 100 + (level - 1) * 30;
     if (score > best) { best = score; localStorage.setItem('arrowBest', best); }
     updateHUD();
     spawnParticles(ax, boardY, '#f0c040', 14);
     toast('✅ Dans le mille !', boardY - 50);
-
-    // Level up after arrow clears board
     transitioning = true;
-    // arrow continues to fall naturally, we level-up when it exits screen
   } else {
-    // ❌ Miss = game over
     flash = { color:'rgb(220,40,40)', alpha:0.28 };
     stuck.push({ x: ax, y: boardY + 14 });
     toast('❌ Raté !', boardY - 50);
@@ -543,21 +486,18 @@ function resolveShot() {
 }
 
 function nextShot() {
-  // Called after a successful arrow falls through
   level++;
   levelFlash = 55;
-  score += 50; // bonus
+  score += 50;
   updateHUD();
   updateGapBar();
 
   const cfg = levelConfig(level);
-  // Place new gap
   const margin = 30;
   const maxLeft = W - margin - cfg.gapW;
   gap.w = cfg.gapW;
   gap.x = margin + Math.random() * (maxLeft - margin);
 
-  // Reset swing
   swing.y = H * 0.18;
   swing.x = 28;
   swing.vx = cfg.speed;
@@ -585,7 +525,6 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// ── Input ────────────────────────────────────────────────────────────
 function shoot() {
   if (gameState !== 'playing' || shot || transitioning) return;
   shot = { x: swing.x, y: swing.y, vy: 8 };
@@ -596,7 +535,6 @@ canvas.addEventListener('pointerdown', shoot);
 canvas.addEventListener('touchstart', e => { e.preventDefault(); shoot(); }, { passive: false });
 document.addEventListener('keydown', e => { if (e.code === 'Space') shoot(); });
 
-// ── Game control ─────────────────────────────────────────────────────
 function startGame() {
   score = 0; level = 1;
   gameState = 'playing';
@@ -632,7 +570,6 @@ function howTo() {
   alert("🏹 Comment jouer :\n\nUne flèche (verticale, pointe en bas) se déplace de gauche à droite.\n\nAppuie / clique pour la lâcher — elle doit tomber dans le trou de la planche.\n\nÀ chaque niveau le trou rétrécit et la flèche va plus vite.\n\nUN seul raté = Game Over !\nVa le plus loin possible 💪");
 }
 
-// ── Particles & Toast ─────────────────────────────────────────────────
 function spawnParticles(x, y, color, n) {
   for (let i = 0; i < n; i++) {
     const p = document.createElement('div');
@@ -655,7 +592,6 @@ function toast(txt, yPos) {
   setTimeout(() => t.remove(), 950);
 }
 
-// ── Init ──────────────────────────────────────────────────────────────
 new ResizeObserver(resize).observe(gw);
 resize();
 updateHUD();
